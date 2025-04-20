@@ -1,0 +1,59 @@
+// ========== Global Variable ==========
+const WEB_APP_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYED_WEB_APP_URL/exec'; // 🔁 Replace with your own deployed URL
+
+// ========== Email Scheduler ==========
+function scheduleEmails() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('EmailScheduler');
+  const data = sheet.getDataRange().getValues();
+  const now = new Date();
+
+  for (let i = 1; i < data.length; i++) {
+    const [email, name, draftSubject, attachmentUrl, status] = data[i];
+
+    if (!email || status === 'Sent') continue;
+
+    // Send immediately (or use future scheduling logic)
+    sendEmailUsingDraft(i, name, email, draftSubject, attachmentUrl);
+    sheet.getRange(i + 1, 5).setValue("Sent"); // Column E: Status
+  }
+}
+
+// ========== Send Email with Draft, Tracking & Attachments ==========
+function sendEmailUsingDraft(rowNum, name, email, draftSubject, attachmentUrl) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  // 🔧 Tracking pixel
+  const trackingPixel = `<img src="${WEB_APP_URL}?email=${encodeURIComponent(email)}" width="1" height="1" style="display:none;">`;
+
+  const drafts = GmailApp.getDrafts();
+  const draft = drafts.find(d => d.getMessage().getSubject().includes(draftSubject));
+
+  if (!draft) {
+    Logger.log("Draft not found for: " + email);
+    sheet.getRange(rowNum + 1, 5).setValue("Draft Not Found"); // Column E: Status
+    return;
+  }
+
+  const message = draft.getMessage();
+  const htmlBody = message.getBody() + trackingPixel;
+
+  // 🔧 Attachments
+  let attachments = [];
+  if (attachmentUrl && attachmentUrl.trim() !== "") {
+    try {
+      const urls = attachmentUrl.split(",");
+      attachments = urls.map(url => UrlFetchApp.fetch(url.trim()).getBlob());
+    } catch (e) {
+      Logger.log("Attachment fetch failed for: " + email);
+      sheet.getRange(rowNum + 1, 5).setValue("Attachment Error"); // Column E: Status
+      return;
+    }
+  }
+
+  GmailApp.sendEmail(email, message.getSubject(), "", {
+    htmlBody: htmlBody,
+    attachments: attachments.length ? attachments : undefined
+  });
+
+  sheet.getRange(rowNum + 1, 5).setValue("Sent"); // Column E: Status
+}
