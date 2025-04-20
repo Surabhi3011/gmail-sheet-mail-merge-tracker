@@ -1,0 +1,18 @@
+function doGet(e) {
+  const email = e.parameter.email;
+  if (!email) return HtmlService.createHtmlOutput("Invalid");
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('EmailScheduler');
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === email && data[i][5] !== 'Yes') { // Column F = Opened
+      sheet.getRange(i + 1, 6).setValue('Yes');
+      break;
+    }
+  }
+
+  // Return 1x1 pixel image
+  const img = UrlFetchApp.fetch("https://upload.wikimedia.org/wikipedia/commons/c/ce/Transparent.gif").getBlob();
+  return ContentService.createBinaryOutput(img).setMimeType(ContentService.MimeType.GIF);
+}
